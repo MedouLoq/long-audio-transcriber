@@ -1,0 +1,29 @@
+# Secrets & credentials
+.env
+.env.*
+!.env.example
+*.json.key
+*service-account*.json
+*credentials*.json
+vertex-*.json
+
+# Runtime data (real recordings, transcripts, user accounts)
+data/
+*.mp3
+*.m4a
+*.aac
+*.wav
+
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+myenv/
+.pytest_cache/
+
+# Editors / OS
+.vscode/
+.idea/
+.claude/
+.DS_Store

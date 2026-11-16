@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Transcriber</title>
+<style>
+:root{
+  --bg:#f6f7f9; --panel:#ffffff; --panel2:#f1f3f6; --line:#e3e6eb; --text:#16181d; --text2:#5b6270; --text3:#8a91a0;
+  --accent:#4f46e5; --accent-soft:#eef0ff; --ok:#15803d; --ok-soft:#e7f6ec; --warn:#a16207; --warn-soft:#fdf4dc;
+  --err:#b91c1c; --err-soft:#fde8e8; --run:#2563eb; --run-soft:#e6efff; --shadow:0 1px 2px rgba(16,24,40,.06),0 4px 16px rgba(16,24,40,.06);
+  --s1:#4f46e5; --s2:#0e9f6e; --s3:#d97706; --s4:#db2777; --s5:#0891b2; --s6:#7c3aed;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0f1115; --panel:#161920; --panel2:#1d2129; --line:#2a2f3a; --text:#e8eaef; --text2:#a6adbb; --text3:#727a89;
+    --accent:#8b85ff; --accent-soft:#25234a; --ok:#4ade80; --ok-soft:#14301f; --warn:#facc15; --warn-soft:#332b0e;
+    --err:#f87171; --err-soft:#3a1a1a; --run:#60a5fa; --run-soft:#172a46; --shadow:none;
+    --s1:#8b85ff; --s2:#34d399; --s3:#fbbf24; --s4:#f472b6; --s5:#22d3ee; --s6:#a78bfa;
+    color-scheme: dark;
+  }
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans","Noto Sans Arabic",sans-serif}
+button,input{font:inherit;color:inherit}
+[hidden]{display:none!important}
+
+/* layout */
+.app{display:grid;grid-template-columns:300px 1fr;height:100vh}
+aside{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+main{overflow:auto;padding:28px clamp(16px,4vw,48px) 48px}
+.brand{display:flex;align-items:center;gap:10px;padding:18px 18px 12px}
+.logo{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--s4));display:grid;place-items:center;color:#fff}
+.brand b{font-size:16px;letter-spacing:-.01em}
+.brand small{display:block;color:var(--text3);font-size:12px;margin-top:-2px}
+.new-btn{margin:4px 14px 12px;display:flex;align-items:center;justify-content:center;gap:8px;padding:10px;border-radius:10px;border:1px dashed var(--line);background:transparent;cursor:pointer;color:var(--text2);font-weight:600}
+.new-btn:hover{border-color:var(--accent);color:var(--accent)}
+.search{margin:0 14px 8px;position:relative}
+.search input{width:100%;padding:9px 12px 9px 34px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);outline:none}
+.search input:focus{border-color:var(--accent)}
+.search svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--text3)}
+.history{overflow:auto;flex:1;padding:4px 8px 12px}
+.group{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);padding:12px 10px 4px}
+.item{display:block;width:100%;text-align:left;border:0;background:transparent;border-radius:10px;padding:9px 10px;cursor:pointer}
+.item:hover{background:var(--panel2)}
+.item.active{background:var(--accent-soft)}
+.item .t{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item .m{display:flex;gap:8px;align-items:center;color:var(--text3);font-size:12px;margin-top:2px}
+.empty-h{color:var(--text3);font-size:13px;padding:16px 12px}
+.me{border-top:1px solid var(--line);padding:12px 16px;display:flex;align-items:center;gap:10px;color:var(--text2);font-size:13px}
+.avatar{width:28px;height:28px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-weight:700;font-size:13px;text-transform:uppercase}
+
+/* badges */
+.badge{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.badge::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.b-done{background:var(--ok-soft);color:var(--ok)} .b-failed{background:var(--err-soft);color:var(--err)}
+.b-running,.b-queued{background:var(--run-soft);color:var(--run)}
+.b-running::before{animation:pulse 1.2s infinite}
+@keyframes pulse{50%{opacity:.25}}
+
+/* cards */
+.wrap{max-width:900px;margin:0 auto}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow)}
+h1{font-size:26px;letter-spacing:-.02em;margin:0 0 4px}
+.sub{color:var(--text2);margin:0 0 22px}
+.drop{border:2px dashed var(--line);border-radius:16px;padding:44px 24px;text-align:center;cursor:pointer;transition:.15s;background:var(--panel)}
+.drop:hover,.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.drop .ic{width:52px;height:52px;margin:0 auto 12px;border-radius:14px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent)}
+.drop b{display:block;font-size:17px}
+.drop span{color:var(--text3);font-size:13px}
+.file-row{display:flex;align-items:center;gap:12px;padding:14px 16px;margin-top:14px}
+.file-row .name{font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.file-row .size{color:var(--text3);font-size:13px}
+.opts{display:flex;gap:12px;margin-top:14px;flex-wrap:wrap;align-items:flex-end}
+.field{flex:1;min-width:220px}
+.field label{display:block;font-size:12.5px;font-weight:600;color:var(--text2);margin-bottom:6px}
+.field input{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--panel);outline:none}
+.field input:focus{border-color:var(--accent)}
+a.btn{text-decoration:none;color:inherit}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:10px 16px;border-radius:10px;border:1px solid var(--line);background:var(--panel);cursor:pointer;font-weight:600;font-size:14px;white-space:nowrap}
+.btn:hover{border-color:var(--text3)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.danger:hover{border-color:var(--err);color:var(--err)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.sm{padding:7px 11px;font-size:13px}
+.tips{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:22px}
+.tip{padding:14px 16px;color:var(--text2);font-size:13.5px}
+.tip b{display:block;color:var(--text);font-size:14px;margin-bottom:2px}
+
+/* job view */
+.job-head{display:flex;gap:16px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;margin-bottom:14px}
+.title-in{text-overflow:ellipsis;font-size:24px;font-weight:700;letter-spacing:-.02em;border:1px solid transparent;border-radius:8px;padding:2px 6px;margin-left:-7px;background:transparent;width:100%;outline:none}
+.title-in:hover{border-color:var(--line)} .title-in:focus{border-color:var(--accent);background:var(--panel)}
+.meta{display:flex;gap:14px;flex-wrap:wrap;color:var(--text2);font-size:13.5px;margin-top:4px;align-items:center}
+.meta .mi{display:inline-flex;align-items:center;gap:5px}
+.meta svg{color:var(--text3)}
+.progress{padding:22px;margin-bottom:16px}
+.steps{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+.step{flex:1;min-width:120px;font-size:12.5px;font-weight:600;color:var(--text3);padding-top:8px;border-top:3px solid var(--line)}
+.step.on{color:var(--run);border-color:var(--run)} .step.ok{color:var(--ok);border-color:var(--ok)}
+.bar{height:8px;border-radius:99px;background:var(--panel2);overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--s4));transition:width .4s}
+.bar.ind i{width:35%;animation:slide 1.3s infinite ease-in-out}
+@keyframes slide{0%{transform:translateX(-100%)}100%{transform:translateX(300%)}}
+.ptext{display:flex;justify-content:space-between;color:var(--text2);font-size:13px;margin-top:8px}
+.note{display:flex;gap:10px;padding:11px 14px;border-radius:12px;margin-bottom:10px;font-size:13.5px}
+.note.warn{background:var(--warn-soft);color:var(--warn)} .note.err{background:var(--err-soft);color:var(--err)}
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:12px;border-bottom:1px solid var(--line);position:sticky;top:-28px;background:var(--panel);border-radius:16px 16px 0 0;z-index:2}
+.tsearch{flex:1;min-width:180px;position:relative}
+.tsearch input{width:100%;padding:8px 12px 8px 32px;border-radius:9px;border:1px solid var(--line);background:var(--panel2);outline:none}
+.tsearch svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text3)}
+.hits{font-size:12.5px;color:var(--text3);min-width:60px}
+.transcript{padding:8px 0 14px}
+.row{display:grid;grid-template-columns:86px 1fr;gap:12px;padding:8px 18px}
+.row:hover{background:var(--panel2)}
+.row.part{grid-template-columns:1fr;padding:14px 18px 6px;color:var(--text3);font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.row.part::after{content:"";display:block;border-top:1px solid var(--line);margin-top:6px}
+.ts{font:12.5px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--text3);padding-top:3px;cursor:pointer;user-select:none}
+.ts:hover{color:var(--accent)}
+.spk{font-size:12.5px;font-weight:700;margin-bottom:1px}
+.txt{white-space:pre-wrap;overflow-wrap:anywhere}
+.missing .txt{color:var(--err);font-style:italic}
+mark{background:#fde68a;color:#111;border-radius:3px;padding:0 1px}
+mark.cur{background:#f59e0b}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:14px;box-shadow:var(--shadow);opacity:0;transition:.2s;pointer-events:none}
+.toast.show{opacity:1}
+.menu-btn{display:none}
+
+@media (max-width:820px){
+  .app{grid-template-columns:1fr;height:auto;min-height:100vh}
+  aside{position:fixed;inset:0 25% 0 0;z-index:20;transform:translateX(-105%);transition:.2s;box-shadow:var(--shadow)}
+  aside.open{transform:none}
+  .backdrop{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:15}
+  .menu-btn{display:inline-flex}
+  main{padding-top:16px}
+  .row{grid-template-columns:70px 1fr;padding:8px 12px}
+  .title-in{font-size:19px;text-overflow:ellipsis}
+  h1{font-size:22px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside id="side">
+    <div class="brand">
+      <div class="logo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 10v4M8 6v12M12 3v18M16 7v10M20 10v4"/></svg></div>
+      <div><b>Transcriber</b><small>Long audio → text</small></div>
+    </div>
+    <button class="new-btn" id="newBtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>New transcription</button>
+    <div class="search">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="hsearch" type="search" placeholder="Search history" aria-label="Search history">
+    </div>
+    <nav class="history" id="history" aria-label="Transcription history"></nav>
+    <div class="me"><div class="avatar" id="avatar">·</div><div><div id="who">…</div><div style="color:var(--text3);font-size:12px">Your transcripts are private to you</div></div></div>
+  </aside>
+
+  <main>
+    <div class="wrap">
+      <button class="btn sm menu-btn" id="menuBtn" style="margin-bottom:14px">☰ History</button>
+
+      <!-- New upload -->
+      <section id="uploadView">
+        <h1>New transcription</h1>
+        <p class="sub">Upload a recording of any length. It is split into parts, transcribed with speaker labels and timestamps, and saved to your history.</p>
+        <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose an audio or video file">
+          <div class="ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M7 8l5-5 5 5M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg></div>
+          <b>Drop an audio or video file here</b>
+          <span>or click to browse · MP3, M4A, AAC, WAV, OGG, OPUS, FLAC, MP4, MKV, WEBM… · up to <span id="maxmb">2048</span> MB</span>
+          <input id="file" type="file" hidden accept="audio/*,video/*,.aac,.m4a,.mp3,.wav,.ogg,.oga,.opus,.flac,.amr,.wma,.3gp,.mp4,.mkv,.webm,.mov">
+        </div>
+        <div class="card file-row" id="fileRow" hidden>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+          <span class="name" id="fileName"></span><span class="size" id="fileSize"></span>
+          <button class="btn sm" id="clearFile">Change</button>
+        </div>
+        <div class="opts">
+          <div class="field">
+            <label for="lang">Language hint <span style="font-weight:400;color:var(--text3)">(optional)</span></label>
+            <input id="lang" placeholder="e.g. Hassaniya Arabic and French" maxlength="60">
+          </div>
+          <button class="btn primary" id="go" disabled>Start transcribing</button>
+        </div>
+        <div class="card progress" id="upProg" hidden style="margin-top:16px">
+          <div class="bar"><i id="upBar"></i></div>
+          <div class="ptext"><span id="upText">Uploading…</span><span id="upPct"></span></div>
+        </div>
+        <div class="tips">
+          <div class="card tip"><b>Any length</b>Long recordings are split into <span id="chunkMin">15</span>-minute parts processed in parallel.</div>
+          <div class="card tip"><b>Timestamps &amp; speakers</b>Every line is stamped in recording time; speakers are labelled.</div>
+          <div class="card tip"><b>Export</b>Copy, or download as plain text or SRT subtitles.</div>
+        </div>
+      </section>
+
+      <!-- Job -->
+      <section id="jobView" hidden>
+        <div class="job-head">
+          <div style="flex:1;min-width:260px">
+            <input class="title-in" id="title" aria-label="Title" maxlength="120">
+            <div class="meta" id="meta"></div>
+          </div>
+        </div>
+        <div class="card progress" id="jobProg" hidden>
+          <div class="steps" id="steps"></div>
+          <div class="bar" id="jbarWrap"><i id="jbar"></i></div>
+          <div class="ptext"><span id="jtext"></span><span id="jpct"></span></div>
+        </div>
+        <div id="notes"></div>
+        <div class="card" id="tcard" hidden>
+          <div class="toolbar">
+            <div class="tsearch">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+              <input id="tsearch" type="search" placeholder="Find in transcript" title="Enter = next match, Shift+Enter = previous" aria-label="Find in transcript">
+            </div>
+            <span class="hits" id="hits"></span>
+            <button class="btn sm" id="copy">Copy</button>
+            <a class="btn sm" id="dlTxt">.txt</a>
+            <a class="btn sm" id="dlSrt">.srt</a>
+            <button class="btn sm danger" id="del">Delete</button>
+          </div>
+          <div class="transcript" id="transcript" dir="auto"></div>
+        </div>
+        <div style="margin-top:14px" id="failActions" hidden><button class="btn danger" id="del2">Delete from history</button></div>
+      </section>
+    </div>
+  </main>
+</div>
+<div class="backdrop" id="backdrop" hidden></div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+let jobs = [], current = null, pollTimer = null, transcriptText = "", file = null;
+
+const fmtDur = s => { if (s == null) return "—"; s = Math.round(s); const h = Math.floor(s/3600), m = Math.floor(s%3600/60), x = s%60;
+  return h ? `${h} h ${String(m).padStart(2,"0")} min` : m ? `${m} min ${String(x).padStart(2,"0")} s` : `${x} s`; };
+const fmtSize = b => b > 1e9 ? (b/1e9).toFixed(1)+" GB" : b > 1e6 ? (b/1e6).toFixed(1)+" MB" : Math.max(1, Math.round(b/1e3))+" KB";
+const fmtDate = t => new Date(t*1000).toLocaleString(undefined, {day:"numeric", month:"short", hour:"2-digit", minute:"2-digit"});
+const stateLabel = s => ({done:"Done", failed:"Failed", running:"Running", queued:"Queued"}[s] || s);
+function toast(msg){ const t = $("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 2200); }
+async function api(path, opts){ const r = await fetch(path, opts); if (!r.ok && r.status !== 204){ let m = "HTTP " + r.status; try { m = (await r.json()).error || m; } catch(_){} throw new Error(m); } return r.status === 204 ? null : r; }
+
+/* ── history ─────────────────────────────────────────── */
+function groupOf(t){ const d = new Date(t*1000), now = new Date(); const day = 864e5;
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  if (d >= start) return "Today"; if (d >= start - day) return "Yesterday"; if (d >= start - 6*day) return "This week";
+  return d.toLocaleDateString(undefined, {month:"long", year:"numeric"}); }
+
+function renderHistory(){
+  const q = $("hsearch").value.trim().toLowerCase(), box = $("history"); box.textContent = "";
+  const list = jobs.filter(j => !q || (j.title||"").toLowerCase().includes(q) || (j.filename||"").toLowerCase().includes(q));
+  if (!list.length){ box.append(el("div", "empty-h", jobs.length ? "No match." : "No transcriptions yet. Upload a recording to get started.")); return; }
+  let last = null;
+  for (const j of list){
+    const g = groupOf(j.created_at || 0); if (g !== last){ box.append(el("div", "group", g)); last = g; }
+    const b = el("button", "item" + (current === j.job_id ? " active" : ""));
+    b.append(el("div", "t", j.title || j.filename));
+    const m = el("div", "m"); m.append(el("span", "badge b-" + j.state, stateLabel(j.state)));
+    m.append(el("span", null, j.duration_seconds ? fmtDur(j.duration_seconds) : fmtDate(j.created_at)));
+    b.append(m); b.onclick = () => { location.hash = "job=" + j.job_id; drawer(false); };
+    box.append(b);
+  }
+}
+async function loadHistory(){ try { jobs = (await (await api("/jobs")).json()).jobs; renderHistory(); } catch(e){ toast(e.message); } }
+
+/* ── upload ──────────────────────────────────────────── */
+function pick(f){ if (!f) return; file = f; $("fileName").textContent = f.name; $("fileSize").textContent = fmtSize(f.size);
+  $("fileRow").hidden = false; $("drop").hidden = true; $("go").disabled = false; }
+$("drop").onclick = () => $("file").click();
+$("drop").onkeydown = e => { if (e.key === "Enter" || e.key === " "){ e.preventDefault(); $("file").click(); } };
+$("file").onchange = e => pick(e.target.files[0]);
+$("clearFile").onclick = () => { file = null; $("file").value = ""; $("fileRow").hidden = true; $("drop").hidden = false; $("go").disabled = true; };
+["dragenter","dragover"].forEach(t => $("drop").addEventListener(t, e => { e.preventDefault(); $("drop").classList.add("over"); }));
+["dragleave","drop"].forEach(t => $("drop").addEventListener(t, e => { e.preventDefault(); $("drop").classList.remove("over"); }));
+$("drop").addEventListener("drop", e => pick(e.dataTransfer.files[0]));
+document.addEventListener("dragover", e => e.preventDefault()); document.addEventListener("drop", e => e.preventDefault());
+
+$("go").onclick = () => {
+  if (!file) return;
+  const fd = new FormData(); fd.append("audio", file); fd.append("language", $("lang").value);
+  $("go").disabled = true; $("upProg").hidden = false;
+  const x = new XMLHttpRequest(); x.open("POST", "/jobs");
+  x.upload.onprogress = ev => { if (ev.lengthComputable){ const p = Math.round(100*ev.loaded/ev.total); $("upBar").style.width = p + "%"; $("upPct").textContent = p + "%"; } };
+  x.onerror = () => { toast("Upload failed. Check the connection."); $("go").disabled = false; $("upProg").hidden = true; };
+  x.onload = async () => {
+    let body = {}; try { body = JSON.parse(x.responseText); } catch(_){}
+    $("upProg").hidden = true; $("upBar").style.width = 0;
+    if (x.status !== 202){ toast(body.error || "Upload rejected (HTTP " + x.status + ")"); $("go").disabled = false; return; }
+    $("clearFile").click(); $("lang").value = ""; await loadHistory(); location.hash = "job=" + body.job_id;
+  };
+  $("upText").textContent = "Uploading " + file.name; x.send(fd);
+};
+
+/* ── job view ────────────────────────────────────────── */
+const STEPS = [["queued","Queued"],["preparing","Preparing audio"],["transcribing","Transcribing"],["done","Done"]];
+function stepIndex(s){ if (s.state === "done") return 4; if (s.state === "queued") return 0; return s.stage === "transcribing" ? 2 : 1; }
+
+function renderMeta(s){
+  const m = $("meta"); m.textContent = "";
+  m.append(el("span", "badge b-" + s.state, stateLabel(s.state)));
+  const item = (icon, text) => { const sp = el("span", "mi"); sp.innerHTML = ICONS[icon]; sp.append(text); m.append(sp); };
+  if (s.duration_seconds) item("clock", fmtDur(s.duration_seconds));
+  if (s.created_at) item("cal", fmtDate(s.created_at));
+  if (s.language) item("lang", s.language);
+}
+
+function renderProgress(s){
+  const show = s.state === "queued" || s.state === "running"; $("jobProg").hidden = !show; if (!show) return;
+  const idx = stepIndex(s), st = $("steps"); st.textContent = "";
+  STEPS.forEach(([_, label], i) => st.append(el("div", "step" + (i < idx ? " ok" : i === idx ? " on" : ""), label)));
+  const total = s.chunks_total || 0, done = s.chunks_done || 0;
+  $("jbarWrap").classList.toggle("ind", !total);
+  $("jbar").style.width = total ? Math.round(100*done/total) + "%" : "";
+  $("jtext").textContent = total ? `Part ${Math.min(done+1, total)} of ${total} · ${fmtDur(s.duration_seconds)} of audio` : (s.state === "queued" ? "Waiting for a free worker…" : "Converting and splitting the audio…");
+  $("jpct").textContent = total ? Math.round(100*done/total) + "%" : "";
+}
+
+function renderNotes(s){
+  const n = $("notes"); n.textContent = "";
+  if (s.state === "failed"){ const d = el("div", "note err"); d.append(el("b", null, "Failed: ")); d.append(document.createTextNode(s.error || "unknown error")); n.append(d); }
+  for (const w of s.warnings || []) n.append(el("div", "note warn", w));
+}
+
+const svg = d => `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const ICONS = {  // static markup only; user/model text is always appended as text nodes
+  clock: svg('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
+  cal: svg('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/>'),
+  lang: svg('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>'),
+};
+const speakerColor = n => `var(--s${((n-1) % 6) + 1})`;
+function renderTranscript(text){
+  transcriptText = text; const box = $("transcript"); box.textContent = "";
+  const parts = text.trim().split(/\n\s*\n/); const multi = parts.length > 1;
+  parts.forEach((part, pi) => {
+    if (multi) box.append(el("div", "row part", `Part ${pi+1}`));
+    for (const line of part.split("\n")){
+      if (!line.trim()) continue;
+      const m = line.match(/^\[(\d{2}:\d{2}:\d{2})\]\s*(?:(Speaker\s+(\d+))\s*:\s*)?(.*)$/);
+      const row = el("div", "row" + (/PART NOT TRANSCRIBED/.test(line) ? " missing" : ""));
+      const ts = el("div", "ts", m ? m[1] : ""); if (m) ts.title = "Copy timestamp";
+      ts.onclick = () => m && navigator.clipboard?.writeText(m[1]).then(() => toast("Timestamp copied"));
+      const body = el("div");
+      if (m && m[2]){ const sp = el("div", "spk", m[2]); sp.style.color = speakerColor(+m[3]); body.append(sp); }
+      body.append(el("div", "txt", m ? m[4] : line));
+      row.append(ts, body); box.append(row);
+    }
+  });
+  $("tsearch").value = ""; $("hits").textContent = "";
+}
+
+/* find in transcript */
+let marks = [], markIdx = -1;
+function clearMarks(){ for (const mk of $("transcript").querySelectorAll("mark")) mk.replaceWith(document.createTextNode(mk.textContent)); $("transcript").normalize(); marks = []; markIdx = -1; }
+function findAll(q){
+  clearMarks(); if (!q) { $("hits").textContent = ""; return; }
+  const lower = q.toLowerCase();
+  for (const node of [...$("transcript").querySelectorAll(".txt")]){
+    const t = node.textContent, l = t.toLowerCase(); if (!l.includes(lower)) continue;
+    node.textContent = ""; let i = 0, j;
+    while ((j = l.indexOf(lower, i)) !== -1){ node.append(t.slice(i, j)); const mk = el("mark", null, t.slice(j, j + q.length)); node.append(mk); marks.push(mk); i = j + q.length; }
+    node.append(t.slice(i));
+  }
+  $("hits").textContent = marks.length ? `${marks.length} match${marks.length > 1 ? "es" : ""}` : "No match"; if (marks.length) step(0);
+}
+function step(i){ if (!marks.length) return; marks[markIdx]?.classList.remove("cur"); markIdx = (i + marks.length) % marks.length;
+  marks[markIdx].classList.add("cur"); marks[markIdx].scrollIntoView({block:"center", behavior:"smooth"}); $("hits").textContent = `${markIdx+1} / ${marks.length}`; }
+let findT; $("tsearch").oninput = e => { clearTimeout(findT); findT = setTimeout(() => findAll(e.target.value.trim()), 180); };
+$("tsearch").onkeydown = e => { if (e.key === "Enter"){ e.preventDefault(); step(markIdx + (e.shiftKey ? -1 : 1)); } };
+
+async function openJob(id){
+  clearTimeout(pollTimer); current = id; renderHistory();
+  $("uploadView").hidden = true; $("jobView").hidden = false; $("tcard").hidden = true; $("failActions").hidden = true; $("notes").textContent = "";
+  let s; try { s = await (await api("/jobs/" + id)).json(); } catch(e){ toast("Transcription not found"); location.hash = ""; return; }
+  $("title").value = s.title || s.filename; renderMeta(s); renderProgress(s); renderNotes(s);
+  if (s.state === "done"){
+    renderTranscript(await (await api(s.transcript_url)).text()); $("tcard").hidden = false;
+    $("dlTxt").href = `/jobs/${id}/transcript.txt?download=1`; $("dlSrt").href = `/jobs/${id}/transcript.srt`;
+  } else if (s.state === "failed"){ $("failActions").hidden = false; }
+  else { pollTimer = setTimeout(() => poll(id), 2500); }
+  const j = jobs.find(x => x.job_id === id); if (j && j.state !== s.state) loadHistory();
+}
+async function poll(id){
+  if (current !== id) return;
+  try { const s = await (await api("/jobs/" + id)).json();
+    if (s.state === "done" || s.state === "failed"){ await loadHistory(); return openJob(id); }
+    renderMeta(s); renderProgress(s);
+  } catch(_){ /* keep polling through blips */ }
+  pollTimer = setTimeout(() => poll(id), 2500);
+}
+
+$("title").addEventListener("change", async e => {
+  const t = e.target.value.trim(); if (!t || !current) return;
+  try { await api("/jobs/" + current, {method:"PATCH", headers:{"Content-Type":"application/json"}, body: JSON.stringify({title: t})}); toast("Renamed"); loadHistory(); } catch(err){ toast(err.message); }
+});
+$("title").addEventListener("keydown", e => { if (e.key === "Enter") e.target.blur(); });
+$("copy").onclick = () => navigator.clipboard.writeText(transcriptText).then(() => toast("Transcript copied"), () => toast("Copy not allowed by the browser"));
+// Delete needs two clicks: the first arms the button for 3 seconds.
+function confirmDelete(button){
+  const label = button.textContent;
+  button.onclick = async () => {
+    if (button.dataset.armed !== "1"){
+      button.dataset.armed = "1"; button.textContent = "Click again to delete";
+      setTimeout(() => { button.dataset.armed = ""; button.textContent = label; }, 3000);
+      return;
+    }
+    if (!current) return; const j = jobs.find(x => x.job_id === current);
+    try { await api("/jobs/" + current, {method:"DELETE"}); toast(`Deleted “${j ? j.title : "transcript"}”`);
+      current = null; location.hash = ""; loadHistory(); } catch(e){ toast(e.message); }
+    button.dataset.armed = ""; button.textContent = label;
+  };
+}
+confirmDelete($("del")); confirmDelete($("del2"));
+
+/* ── routing & boot ──────────────────────────────────── */
+function route(){ const m = location.hash.match(/job=([0-9a-f]{32})/);
+  if (m) openJob(m[1]); else { clearTimeout(pollTimer); current = null; $("jobView").hidden = true; $("uploadView").hidden = false; renderHistory(); } }
+window.addEventListener("hashchange", route);
+$("newBtn").onclick = () => { location.hash = ""; drawer(false); };
+function drawer(open){ $("side").classList.toggle("open", open); $("backdrop").hidden = !open; }
+$("menuBtn").onclick = () => drawer(!$("side").classList.contains("open"));
+$("backdrop").onclick = () => drawer(false);
+$("hsearch").oninput = renderHistory;
+
+(async () => {
+  try { const me = await (await api("/me")).json();
+    $("who").textContent = me.auth ? me.user : "Local mode"; $("avatar").textContent = (me.user || "·")[0];
+    $("chunkMin").textContent = me.chunk_minutes; $("maxmb").textContent = me.max_upload_mb;
+  } catch(_){}
+  await loadHistory(); route();
+  setInterval(() => { if (jobs.some(j => j.state === "running" || j.state === "queued")) loadHistory(); }, 5000);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+[Unit]
+Description=Long-audio transcriber
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=transcriber
+WorkingDirectory=/opt/long-audio-transcriber
+EnvironmentFile=/opt/long-audio-transcriber/.env
+ExecStart=/opt/long-audio-transcriber/.venv/bin/python app.py
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
